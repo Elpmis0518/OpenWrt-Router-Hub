@@ -1,0 +1,63 @@
+{
+  "ok": true,
+  "data": {
+    "entries": [
+      {
+        "name": "cooling_device1",
+        "type": "symlink",
+        "size": 0,
+        "mode": 41471,
+        "atime": 1791195887,
+        "mtime": 1791195887,
+        "ctime": 1791195887,
+        "inode": 4015,
+        "uid": 0,
+        "gid": 0,
+        "user": "root",
+        "group": "root",
+        "target": {
+          "name": "../../devices/virtual/thermal/cooling_device1",
+          "type": "directory",
+          "size": 0,
+          "mode": 16877,
+          "atime": 1791195887,
+          "mtime": 1791195887,
+          "ctime": 1791195887,
+          "inode": 4012,
+          "uid": 0,
+          "gid": 0,
+          "user": "root",
+          "group": "root"
+        }
+      },
+      {
+        "name": "cooling_device0",
+        "type": "symlink",
+        "size": 0,
+        "mode": 41471,
+        "atime": 1791195887,
+        "mtime": 1791195887,
+        "ctime": 1791195887,
+        "inode": 4000,
+        "uid": 0,
+        "gid": 0,
+        "user": "root",
+        "group": "root",
+        "target": {
+          "name": "../../devices/virtual/thermal/cooling_device0",
+          "type": "directory",
+          "size": 0,
+          "mode": 16877,
+          "atime": 1791195887,
+          "mtime": 1791195887,
+          "ctime": 1791195887,
+          "inode": 3997,
+          "uid": 0,
+          "gid": 0,
+          "user": "root",
+          "group": "root"
+        }
+      }
+    ]
+  }
+}

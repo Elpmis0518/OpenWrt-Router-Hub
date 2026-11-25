@@ -1,0 +1,41 @@
+#!/bin/sh
+# Whitelist *.whu.edu.cn across dnsmasq, OpenClash Fake-IP filter, adblock (TR3000), and adblock-fast (AX3000T).
+
+append_line() {
+	file="$1"
+	line="$2"
+	[ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ] && printf '\n' >> "$file"
+	printf '%s\n' "$line" >> "$file"
+}
+
+# 1. dnsmasq DNS rebind protection whitelist (allows *.whu.edu.cn internal RFC1918 IPs)
+if uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
+	if ! uci -q get dhcp.@dnsmasq[0].rebind_domain 2>/dev/null | tr ' ' '\n' | grep -Fxq 'whu.edu.cn'; then
+		uci add_list dhcp.@dnsmasq[0].rebind_domain='whu.edu.cn'
+		uci commit dhcp
+	fi
+fi
+
+# 2. OpenClash Fake-IP filter whitelist (+ matches apex and all multi-level *.whu.edu.cn subdomains)
+OC_FILTER="/etc/openclash/custom/openclash_custom_fake_filter.list"
+if [ -d /etc/openclash/custom ]; then
+	touch "$OC_FILTER"
+	grep -Fxq '+.whu.edu.cn' "$OC_FILTER" || append_line "$OC_FILTER" '+.whu.edu.cn'
+fi
+
+# 3. adblock allowlist (TR3000: adblock matches whu.edu.cn and all *.whu.edu.cn subdomains)
+if [ -d /etc/adblock ]; then
+	ADB_ALLOW="/etc/adblock/adblock.allowlist"
+	touch "$ADB_ALLOW"
+	grep -Fxq 'whu.edu.cn' "$ADB_ALLOW" || append_line "$ADB_ALLOW" 'whu.edu.cn'
+fi
+
+# 4. adblock-fast allowed_domain (AX3000T: matches whu.edu.cn and all *.whu.edu.cn subdomains)
+if uci -q get adblock-fast.config >/dev/null 2>&1; then
+	if ! uci -q get adblock-fast.config.allowed_domain 2>/dev/null | tr ' ' '\n' | grep -Fxq 'whu.edu.cn'; then
+		uci add_list adblock-fast.config.allowed_domain='whu.edu.cn'
+		uci commit adblock-fast
+	fi
+fi
+
+exit 0

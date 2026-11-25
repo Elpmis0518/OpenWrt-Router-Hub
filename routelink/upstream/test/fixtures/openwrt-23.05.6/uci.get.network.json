@@ -1,0 +1,87 @@
+{
+  "ok": true,
+  "data": {
+    "values": {
+      "loopback": {
+        ".anonymous": false,
+        ".type": "interface",
+        ".name": "loopback",
+        ".index": 0,
+        "device": "lo",
+        "proto": "static",
+        "ipaddr": "127.0.0.1",
+        "netmask": "255.0.0.0"
+      },
+      "globals": {
+        ".anonymous": false,
+        ".type": "globals",
+        ".name": "globals",
+        ".index": 1,
+        "ula_prefix": "fda3:6886:8f75::/48"
+      },
+      "cfg030f15": {
+        ".anonymous": true,
+        ".type": "device",
+        ".name": "cfg030f15",
+        ".index": 2,
+        "name": "br-lan",
+        "type": "bridge",
+        "ports": [
+          "eth0",
+          "eth2",
+          "eth3"
+        ]
+      },
+      "lan": {
+        ".anonymous": false,
+        ".type": "interface",
+        ".name": "lan",
+        ".index": 3,
+        "device": "br-lan",
+        "proto": "static",
+        "ipaddr": "192.168.1.1",
+        "netmask": "255.255.255.0",
+        "ip6assign": "60"
+      },
+      "wan": {
+        ".anonymous": false,
+        ".type": "interface",
+        ".name": "wan",
+        ".index": 4,
+        "device": "eth1",
+        "proto": "dhcp"
+      },
+      "wan6": {
+        ".anonymous": false,
+        ".type": "interface",
+        ".name": "wan6",
+        ".index": 5,
+        "device": "eth1",
+        "proto": "dhcpv6"
+      },
+      "wg0": {
+        ".anonymous": false,
+        ".type": "interface",
+        ".name": "wg0",
+        ".index": 6,
+        "proto": "wireguard",
+        "private_key": "YOjoaN5s6m1CbZ36XX00dV8cXDGFMZzMAmQByNA0yHc=",
+        "listen_port": "51820",
+        "addresses": [
+          "10.9.0.1/24"
+        ]
+      },
+      "wg0_peer": {
+        ".anonymous": false,
+        ".type": "wireguard_wg0",
+        ".name": "wg0_peer",
+        ".index": 7,
+        "description": "Test peer",
+        "public_key": "4XZXtV55IbCD5wdHx/ymsuZJBjf/XbJeUWvrYEpQlTA=",
+        "allowed_ips": [
+          "10.9.0.2/32"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,371 @@
+name: Build TR3000 (256MB)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref/SHA to checkout'
+        required: false
+        default: ''
+        type: string
+      TEST:
+        description: 'Generate .config only without compiling firmware'
+        required: false
+        default: false
+        type: boolean
+      PACKAGE:
+        description: 'Optional extra Kconfig lines separated by \n'
+        required: false
+        default: ''
+        type: string
+      skip_pages:
+        description: 'Skip GitHub Pages deploy (when orchestrated by daily-sync-and-build)'
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      TEST:
+        description: '仅输出配置文件，不编译固件'
+        required: false
+        default: false
+        type: boolean
+      PACKAGE:
+        description: '手动调整插件包，多个请用 \n 隔开'
+        required: false
+        default: ''
+        type: string
+
+permissions: write-all
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  WRT_CONFIG: MEDIATEK-TR3000-256MB-WIFI-YES
+  WRT_THEME: vantage
+  WRT_NAME: OWRT
+  WRT_SSID: OWRT
+  WRT_WORD: '12345678'
+  WRT_IP: 192.168.10.1
+  WRT_PW: 无
+  WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
+  WRT_BRANCH: owrt
+  WRT_SOURCE: VIKINGYFY/immortalwrt
+  WRT_PACKAGE: ${{ inputs.PACKAGE || '' }}
+  WRT_TEST: ${{ inputs.TEST || false }}
+
+jobs:
+  build:
+    name: Cudy TR3000 v1 256MB (ImmortalWrt)
+    runs-on: ubuntu-latest
+    outputs:
+      cache_prefix: ${{ steps.init.outputs.cache_prefix }}
+      cache_key: ${{ steps.clone.outputs.cache_key }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Initialize Build Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          sudo apt-get -yqq update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential bzip2 ca-certificates ccache clang \
+            cmake cpio curl device-tree-compiler dos2unix file flex \
+            g++-multilib gawk gcc-multilib genisoimage gettext git jq \
+            libbpf-dev libclang-dev libdw-dev libelf-dev libncurses-dev libssl-dev lld \
+            llvm ninja-build patch perl pkgconf python3 python3-cryptography \
+            python3-dev python3-packaging python3-pyelftools python3-setuptools qemu-utils rsync swig \
+            unzip wget xz-utils zlib1g-dev zstd
+          command -v go >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends golang-go
+          sudo apt-get -yqq autoremove --purge
+          sudo apt-get -yqq clean
+
+          sudo timedatectl set-timezone "Asia/Shanghai"
+
+          sudo mkdir -p /mnt/build_tr3000
+          sudo chown "$USER:$USER" /mnt/build_tr3000
+          ln -sfn /mnt/build_tr3000 "$GITHUB_WORKSPACE/wrt"
+
+      - name: Initialize Build Metadata
+        id: init
+        run: |
+          set -euo pipefail
+          WRT_TARGET="mediatek"
+          WRT_SUBTARGET="filogic"
+          WRT_WIFI="$(grep -oE 'WIFI-(YES|NO)$' <<< "${WRT_CONFIG^^}" || true)"
+          WRT_WIFI="${WRT_WIFI:-none}"
+          WRT_CACHE_PREFIX="tr3000-immortalwrt-owrt-${WRT_TARGET}-${WRT_SUBTARGET}"
+
+          {
+            echo "WRT_INFO=${WRT_SOURCE%%/*}"
+            echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}"
+            echo "WRT_DATE=$(TZ=Asia/Shanghai date +'%y.%m.%d-%H.%M.%S')"
+            echo "RELEASE_STAMP=$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M%S')"
+            echo "WRT_TARGET=${WRT_TARGET}"
+            echo "WRT_SUBTARGET=${WRT_SUBTARGET}"
+            echo "WRT_WIFI=${WRT_WIFI}"
+            echo "WRT_CACHE_PREFIX=${WRT_CACHE_PREFIX}"
+            echo "WRT_KVER=none"
+            echo "WRT_LIST=none"
+          } >> "$GITHUB_ENV"
+          echo "cache_prefix=${WRT_CACHE_PREFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Clone ImmortalWrt Source
+        id: clone
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --single-branch --branch "$WRT_BRANCH" "$WRT_REPO" ./wrt/
+          WRT_HASH="$(git -C ./wrt rev-parse HEAD)"
+          WRT_CACHE_KEY="${WRT_CACHE_PREFIX}-${WRT_HASH}"
+          echo "WRT_HASH=${WRT_HASH}" >> "$GITHUB_ENV"
+          echo "WRT_CACHE_KEY=${WRT_CACHE_KEY}" >> "$GITHUB_ENV"
+          echo "cache_key=${WRT_CACHE_KEY}" >> "$GITHUB_OUTPUT"
+
+          ./shared/scripts/clean-mirrors.sh ./wrt
+
+      - name: Normalize Script Line Endings
+        run: |
+          find ./devices/tr3000-256mb/upstream -type f \( -iname '*.txt' -o -iname '*.sh' \) -exec dos2unix {} +
+          chmod +x ./devices/tr3000-256mb/upstream/Scripts/*.sh ./devices/tr3000-256mb/upstream/ci-scripts/*.sh
+
+      - name: Restore Build Cache
+        id: cache-restore
+        if: ${{ !inputs.TEST }}
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ env.WRT_CACHE_KEY }}
+          restore-keys: ${{ env.WRT_CACHE_PREFIX }}-
+          path: |
+            ./wrt/.ccache
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+
+      - name: Prepare Restored Build Cache
+        if: ${{ !inputs.TEST && steps.cache-restore.outputs.cache-matched-key != '' }}
+        run: |
+          find ./wrt/staging_dir -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
+            find "$DIR" -type f -exec touch {} +
+          done
+          mkdir -p ./wrt/tmp
+          echo "1" > ./wrt/tmp/.build
+          echo "Restored TR3000 build cache: ${{ steps.cache-restore.outputs.cache-matched-key }}"
+
+      - name: Update & Install Feeds
+        run: |
+          cd ./wrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Custom Packages & Common Overlay
+        run: |
+          set -euo pipefail
+          (
+            cd ./wrt
+            "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/Scripts/Packages.sh"
+            "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/Scripts/Handles.sh"
+            "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/ci-scripts/prepare-i2c-tools.sh"
+          )
+          ./devices/tr3000-256mb/scripts/inject-routelink.sh "$GITHUB_WORKSPACE/wrt"
+          ./shared/scripts/apply-common-files.sh "$GITHUB_WORKSPACE/wrt"
+          ./shared/scripts/apply-hub-overlay.sh "$GITHUB_WORKSPACE/wrt" tr3000 "tr3000-${RELEASE_STAMP}"
+
+      - name: Generate Single-Device Config & Apply Settings
+        run: |
+          set -euo pipefail
+          ./devices/tr3000-256mb/scripts/prepare-config.sh "$GITHUB_WORKSPACE/wrt"
+          (
+            cd ./wrt
+            "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/Scripts/Settings.sh"
+            "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/ci-scripts/prepare-build-host.sh"
+            make defconfig -j"$(nproc)"
+            make clean -j"$(nproc)"
+          )
+
+      - name: Prepare Rust Toolchain
+        if: ${{ !inputs.TEST }}
+        run: |
+          cd ./wrt
+          "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/ci-scripts/prepare-rust.sh"
+
+      - name: Download Packages
+        if: ${{ !inputs.TEST }}
+        run: |
+          set -euo pipefail
+          cd ./wrt
+          make download -j"$(nproc)" || make download -j1 V=s
+          find dl -type f -size -1024c -print -delete
+
+      - name: Compile Firmware
+        if: ${{ !inputs.TEST }}
+        run: |
+          set -euo pipefail
+          cd ./wrt
+          mkdir -p "$GITHUB_WORKSPACE/build-reports"
+          make -j"$(nproc)" BUILD_TIME_LOG="$GITHUB_WORKSPACE/build-reports/parallel.tsv" || \
+            make -j1 V=s BUILD_TIME_LOG="$GITHUB_WORKSPACE/build-reports/serial.tsv"
+
+      - name: Collect Build Reports
+        if: ${{ !inputs.TEST && always() }}
+        continue-on-error: true
+        run: |
+          cd ./wrt
+          "$GITHUB_WORKSPACE/devices/tr3000-256mb/upstream/ci-scripts/collect-build-reports.sh"
+
+      - name: Upload Build Reports
+        if: ${{ !inputs.TEST && always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports-tr3000-${{ github.run_attempt }}
+          path: ./build-reports/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Save Build Cache
+        if: ${{ !inputs.TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ env.WRT_CACHE_KEY }}
+          path: |
+            ./wrt/.ccache
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+
+      - name: Package Firmware & Standalone RouteLink APK
+        env:
+          OPENWRT_APK_KEY: ${{ secrets.OPENWRT_APK_KEY }}
+        run: |
+          set -euo pipefail
+          cd ./wrt
+          rm -rf ./upload && mkdir -p ./upload
+          cp -f ./.config "./upload/Config-${WRT_CONFIG}-${WRT_DATE}.txt"
+
+          if [[ "$WRT_TEST" != "true" ]]; then
+            KVER="$(find ./bin/targets/ -type f -name '*.manifest' -exec grep -m1 -oP '^kernel - \K[\d\.]+' {} \; | head -n 1 || true)"
+            LIST="$(find ./bin/targets/ -type f -name '*.manifest' -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | sort -u | tr '\n' ' ' || true)"
+            echo "WRT_KVER=${KVER:-unknown}" >> "$GITHUB_ENV"
+            echo "WRT_LIST=${LIST:-none}" >> "$GITHUB_ENV"
+
+            # Collect standalone RouteLink .apk packages BEFORE make clean
+            RL_FEED_DIR="${RUNNER_TEMP}/tr3000-routelink-feed"
+            rm -rf "${RL_FEED_DIR}" && mkdir -p "${RL_FEED_DIR}"
+            RL_COUNT=0
+            while IFS= read -r PKG; do
+              [ -n "$PKG" ] || continue
+              cp -f "$PKG" "${RL_FEED_DIR}/"
+              RL_COUNT=$((RL_COUNT + 1))
+            done < <(find ./bin/packages/ -type f -iname '*routelink*.apk' | sort)
+            echo "Collected ${RL_COUNT} standalone RouteLink .apk package(s)."
+            if [ "$RL_COUNT" -eq 0 ]; then
+              echo "::error::No standalone *routelink*.apk packages found in bin/packages/!"
+              exit 1
+            fi
+
+            # Sign RouteLink .apk packages and build signed packages.adb index using our fixed Hub key
+            if [ -z "${OPENWRT_APK_KEY}" ]; then
+              echo "::error::Missing required OPENWRT_APK_KEY secret for signing RouteLink apk feed!"
+              exit 1
+            fi
+            WRT_ROOT="$PWD"
+            APK_HOST="${WRT_ROOT}/staging_dir/host/bin/apk"
+            TMP_KEY="$(mktemp "${RUNNER_TEMP}/apk-key.XXXXXX.pem")"
+            TMP_PUBKEYS="$(mktemp -d "${RUNNER_TEMP}/apk-pubkeys.XXXXXX")"
+            trap 'rm -rf "${TMP_KEY}" "${TMP_PUBKEYS}"' EXIT
+            umask 077
+            printf '%s\n' "${OPENWRT_APK_KEY}" > "${TMP_KEY}"
+            umask 022
+            cp -f "${GITHUB_WORKSPACE}/routelink/feed/keys/routelink-apk.pem" "${TMP_PUBKEYS}/routelink-apk.pem"
+            for f in "${RL_FEED_DIR}"/*.apk; do
+              "${APK_HOST}" adbsign --allow-untrusted --reset-signatures --sign-key "${TMP_KEY}" "$f"
+            done
+            (cd "${RL_FEED_DIR}" && "${APK_HOST}" mkndx --allow-untrusted --sign-key "${TMP_KEY}" --output packages.adb *.apk)
+            "${APK_HOST}" verify --keys-dir "${TMP_PUBKEYS}" "${RL_FEED_DIR}"/*.apk
+            rm -rf "${TMP_KEY}" "${TMP_PUBKEYS}"
+            trap - EXIT
+            cp -f "${RL_FEED_DIR}"/*.apk "${RL_FEED_DIR}/packages.adb" ./upload/
+
+            # Collect TR3000 firmware images & manifest only (exclude unrelated mt798* BL2 images & metadata)
+            find ./bin/targets/ -maxdepth 4 -type d -name packages -exec rm -rf {} +
+            find ./bin/targets/ -type f \( -iname '*cudy_tr3000-v1-256mb*' -o -iname '*.manifest' \) -exec cp -f {} ./upload/ \;
+
+            (cd ./upload && sha256sum * > SHA256SUMS)
+            ls -lh ./upload
+
+            make clean -j"$(nproc)"
+          fi
+
+      - name: Upload Config Artifact (TEST mode)
+        if: ${{ inputs.TEST }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tr3000-config-${{ env.RELEASE_STAMP }}
+          path: ./wrt/upload/Config-*.txt
+          retention-days: 7
+
+      - name: Publish Release & Prune Old TR3000 Releases
+        if: ${{ !inputs.TEST }}
+        run: |
+          set -euo pipefail
+          TAG="tr3000-${RELEASE_STAMP}"
+          NOTES_FILE="${RUNNER_TEMP}/tr3000-release-notes.md"
+          {
+            printf '## Cudy TR3000 v1 (256MB) — ImmortalWrt (`%s`)\n\n' "${WRT_BRANCH}"
+            printf -- '- **Source**: %s (`%s`)\n' "${WRT_REPO}" "${WRT_HASH:0:12}"
+            printf -- '- **Profile**: `cudy_tr3000-v1-256mb` (`%s`)\n' "${WRT_CONFIG}"
+            printf -- '- **Kernel**: `%s`\n' "${WRT_KVER}"
+            printf -- '- **Default IP / Hostname**: `%s` / `%s`\n' "${WRT_IP}" "${WRT_NAME}"
+            printf -- '- **Default Wi-Fi**: SSID `%s` / Key `%s`\n' "${WRT_SSID}" "${WRT_WORD}"
+            printf -- '- **Theme**: `%s`\n' "${WRT_THEME}"
+            printf -- '- **Included**: Firmware images + standalone `*routelink*.apk` packages + `.config` + `SHA256SUMS`\n'
+            printf -- '- **LuCI Apps**: %s\n' "${WRT_LIST}"
+          } > "${NOTES_FILE}"
+
+          gh release create "$TAG" ./wrt/upload/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "TR3000 256MB (${RELEASE_STAMP})" \
+            --notes-file "${NOTES_FILE}"
+
+          ./shared/scripts/prune-releases.sh "tr3000-" 3
+
+  cache-rollover:
+    name: Roll TR3000 Cache Generations
+    needs: build
+    if: ${{ !inputs.TEST && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: tr3000-cache-rollover-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Roll Build Cache
+        continue-on-error: true
+        run: ./shared/scripts/roll-cache.sh "${{ needs.build.outputs.cache_prefix }}" "${{ needs.build.outputs.cache_key }}"
+
+  publish-pages:
+    name: Update Pages (Firmware & RouteLink Feed)
+    needs: build
+    if: ${{ !inputs.TEST && !inputs.skip_pages && needs.build.result == 'success' }}
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+    secrets: inherit

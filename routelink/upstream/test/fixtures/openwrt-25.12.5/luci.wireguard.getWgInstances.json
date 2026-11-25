@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "data": {
+    "wg0": {
+      "name": "wg0",
+      "public_key": "KswlJyRQIzwjMAsrmDluZt+8g0apEZbZeNFRS5jsrD8=",
+      "listen_port": "51820",
+      "fwmark": "off",
+      "peers": [
+        {
+          "name": "Test peer",
+          "public_key": "8frXSlwF5rNo9GyL6EPKP39lqFW6wQ3+VIIKim2RgDk=",
+          "endpoint": "(none)",
+          "allowed_ips": [],
+          "latest_handshake": "0",
+          "transfer_rx": "0",
+          "transfer_tx": "0",
+          "persistent_keepalive": "off"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,136 @@
+import { FixtureConnection, fail, ok } from '../../../test/fixture-connection';
+import {
+  describeSchedule,
+  findEntry,
+  parseCrontab,
+  readCrontab,
+  serializeCrontab,
+  validateSchedule,
+  writeCrontab,
+  type CronEntry,
+} from './cron';
+
+const text = [
+  '# rotate logs',
+  '0 4 * * * /usr/sbin/logrotate',
+  '*/30 * * * * logger routelink-test',
+  '',
+  '# RouteLink: wifi off',
+  '0 23 * * 1-5 wifi down',
+].join('\n');
+
+describe('parseCrontab / serializeCrontab', () => {
+  it('reads entries and keeps comments and blank lines', () => {
+    const tab = parseCrontab(text);
+    const entries = tab.filter((l): l is CronEntry => l.kind === 'entry');
+    expect(entries.map((e) => [e.schedule.join(' '), e.command])).toEqual([
+      ['0 4 * * *', '/usr/sbin/logrotate'],
+      ['*/30 * * * *', 'logger routelink-test'],
+      ['0 23 * * 1-5', 'wifi down'],
+    ]);
+    expect(entries[2].managed).toBe(true);
+    expect(serializeCrontab(tab)).toBe(`${text}\n`);
+  });
+
+  it('keeps lines it does not understand', () => {
+    const tab = parseCrontab('@reboot something\nMAILTO=x');
+    expect(tab.every((l) => l.kind === 'other')).toBe(true);
+    expect(serializeCrontab(tab)).toBe('@reboot something\nMAILTO=x\n');
+  });
+});
+
+describe('validateSchedule', () => {
+  it.each([
+    ['0 4 * * *', null],
+    ['*/15 * * * *', null],
+    ['0 8-18/2 * * mon-fri', null],
+    ['30 3 1,15 jan,jul 0', null],
+    ['60 * * * *', 'minute'],
+    ['0 24 * * *', 'hour'],
+    ['0 0 0 * *', 'day'],
+    ['0 0 * 13 *', 'month'],
+    ['0 0 * * 8', 'weekday'],
+    ['* * * *', 'fields'],
+    ['*/0 * * * *', 'minute'],
+  ])('%s → %s', (line, expected) => {
+    expect(validateSchedule(line.split(' '))).toBe(expected);
+  });
+});
+
+describe('describeSchedule', () => {
+  it.each([
+    ['*/30 * * * *', 'zh-CN', '每 30 分钟'],
+    ['0 4 * * *', 'zh-CN', '每天 04:00'],
+    ['5 23 * * 1-5', 'zh-CN', '周一至周五 23:05'],
+    ['0 9 1 * *', 'zh-CN', '每月 1 日 09:00'],
+    ['0 4 * * *', 'en', 'Every day at 04:00'],
+    ['*/30 * * * *', 'en', 'Every 30 minutes'],
+    ['0 23 * * 0', 'en', 'Sundays at 23:00'],
+    ['7 1-3 * 2 *', 'en', null],
+  ] as const)('%s (%s) → %s', (line, lang, expected) => {
+    expect(describeSchedule(line.split(' '), lang)).toBe(expected);
+  });
+});
+
+describe('reading and writing', () => {
+  it('reads the root crontab, empty when there is none', async () => {
+    const conn = new FixtureConnection('none').override('file.read', ok({ data: text }));
+    expect((await readCrontab(conn)).original).toBe(text);
+    const none = new FixtureConnection('none').override('file.read', fail('NOT_FOUND'));
+    expect((await readCrontab(none)).lines).toEqual([]);
+    // rpcd answers NO_DATA for an empty file (seen on the Docker router).
+    const empty = new FixtureConnection('none').override('file.read', fail('NO_DATA'));
+    expect(await readCrontab(empty)).toEqual({ lines: [], original: '' });
+  });
+
+  it('writes the file and reloads cron, unless it changed meanwhile', async () => {
+    const conn = new FixtureConnection('none')
+      .override('file.read', ok({ data: text }))
+      .override('file.write', ok({}))
+      .override('file.exec', ok({ code: 0 }));
+    const tab = parseCrontab(text);
+    await writeCrontab(conn, tab, text);
+    expect(conn.calls.find((c) => c.method === 'write')?.params).toEqual({
+      path: '/etc/crontabs/root',
+      data: `${text}\n`,
+    });
+    expect(conn.calls.find((c) => c.method === 'exec')?.params).toEqual({
+      command: '/etc/init.d/cron',
+      params: ['reload'],
+    });
+
+    await expect(writeCrontab(conn, tab, 'something else')).rejects.toMatchObject({ code: 'cron-changed' });
+  });
+});
+
+describe('findEntry', () => {
+  const lines = parseCrontab(text);
+  const logger = lines[2] as CronEntry;
+
+  it('finds the entry where it was', () => {
+    expect(findEntry(lines, logger, 2)).toBe(2);
+  });
+
+  it('finds it after lines were added above', () => {
+    const moved = parseCrontab(`0 1 * * * reboot
+${text}`);
+    expect(findEntry(moved, logger, 2)).toBe(3);
+  });
+
+  it('prefers the copy at the old place when the same task is there twice', () => {
+    const twice = parseCrontab(`*/30 * * * * logger routelink-test
+${text}`);
+    expect(findEntry(twice, logger, 3)).toBe(3);
+    expect(findEntry(twice, logger, 1)).toBe(0);
+  });
+
+  it('is null once the entry was changed or removed', () => {
+    expect(findEntry(parseCrontab(text.replace('*/30', '*/15')), logger, 2)).toBeNull();
+    expect(findEntry(parseCrontab('# empty'), logger, 2)).toBeNull();
+  });
+
+  it('skips App-managed tasks', () => {
+    const managed = lines[5] as CronEntry;
+    expect(findEntry(lines, { ...managed, managed: false }, 5)).toBeNull();
+  });
+});

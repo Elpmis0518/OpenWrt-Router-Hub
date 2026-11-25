@@ -1,0 +1,109 @@
+{
+  "title": "设备",
+  "search": "搜索名称、IP、MAC 或厂商",
+  "filter": {
+    "all": "全部",
+    "online": "在线",
+    "offline": "离线",
+    "wifi": "无线",
+    "wired": "有线"
+  },
+  "summary": "在线 {{online}} / 共 {{total}}",
+  "empty": "没有符合条件的设备",
+  "privateAddress": "私有地址",
+  "badge": {
+    "static": "静态",
+    "blocked": "已拉黑"
+  },
+  "detail": {
+    "ip": "IP 地址",
+    "ipv6": "IPv6",
+    "mac": "MAC 地址",
+    "vendor": "厂商",
+    "hostname": "主机名",
+    "connection": "连接方式",
+    "wired": "有线",
+    "signal": "信号",
+    "rates": "收 / 发速率",
+    "connectedFor": "已连接",
+    "lease": "租约剩余",
+    "staticIp": "静态 IP",
+    "notFound": "这台设备已不在列表中",
+    "apUnknown": "「{{name}}」离线，无线信息未知",
+    "signalRow": "信号"
+  },
+  "actions": {
+    "title": "操作",
+    "rename": "改名",
+    "renamePrompt": "新名称",
+    "renameHint": "英文、数字和连字符组成的名字会同时写进路由器的 DNS；其他名字只在 RouteLink 里显示。",
+    "staticIp": "绑定静态 IP",
+    "staticIpEdit": "修改静态 IP",
+    "removeStaticIp": "取消静态 IP",
+    "kick": "踢下线",
+    "kickBan": "5 分钟内禁止重连",
+    "block": "拉黑",
+    "unblock": "解除拉黑",
+    "wake": "网络唤醒",
+    "addToWol": "加入唤醒列表",
+    "copyIp": "复制 IP",
+    "copyMac": "复制 MAC"
+  },
+  "confirm": {
+    "kickTitle": "把「{{name}}」踢下线？",
+    "kickConsequence": "这台设备会断开 Wi-Fi，之后会自动尝试重连",
+    "kickBanConsequence": "5 分钟内这台设备无法重新连接",
+    "blockTitle": "拉黑「{{name}}」？",
+    "blockConsequence": "这台设备将无法访问互联网，直到你解除拉黑",
+    "unblockTitle": "解除拉黑「{{name}}」？",
+    "unblockConsequence": "这台设备将恢复上网",
+    "staticTitle": "为「{{name}}」绑定 {{ip}}？",
+    "staticConsequence": "设备需要重新连接网络后才会使用新地址",
+    "applyConsequence": "修改会通过安全应用提交，出错时路由器会自动恢复"
+  },
+  "result": {
+    "applied": "已应用",
+    "rolledBack": "配置已自动恢复：路由器在规定时间内没有收到确认",
+    "woken": "唤醒包已发送",
+    "wokenByPhone": "唤醒包已从手机发出"
+  },
+  "parental": {
+    "title": "上网时间",
+    "none": "不限制",
+    "count": "{{count}} 个禁止时段",
+    "paused": "已暂停",
+    "intro": "在这些时段里，这台设备不能上网；Wi-Fi 照常连接，访问路由器本身也不受影响。时间按路由器的时区计算。每个时段保存后立即生效。",
+    "enabled": "按时段禁止上网",
+    "periods": "禁止上网的时段",
+    "noPeriods": "还没有时段",
+    "add": "添加时段",
+    "edit": "编辑时段",
+    "days": "哪几天",
+    "from": "开始",
+    "to": "结束",
+    "overnightHint": "结束时间早于开始时间，表示到第二天这个时间结束。",
+    "deletePeriod": "删除这个时段",
+    "deleteTitle": "删除这个时段？",
+    "save": "保存并应用",
+    "blockedNow": "现在是禁止上网时段：{{window}}",
+    "allowedNow": "现在可以上网",
+    "routerTime": "路由器时间 {{time}}",
+    "confirmTitle": "更新「{{name}}」的上网时间？",
+    "consequenceRules": "路由器会重新加载防火墙规则，用时几秒。",
+    "consequenceCut": "每个时段开始时，这台设备正在进行的连接也会断开，比如在看的视频。",
+    "footer": "这些规则由 App 管理，在防火墙页只读。有夏令时的时区，切换后要等防火墙下次重载才对齐。",
+    "saved": "已更新上网时间",
+    "error": {
+      "days": "至少选一天",
+      "time": "时间格式不对",
+      "same": "开始和结束不能相同"
+    }
+  },
+  "group": {
+    "offline": "「{{name}}」连接不上，它上面设备的无线信息暂时未知。",
+    "needsPassword": "没有保存「{{name}}」的密码，它上面的设备暂时看不到无线信息。",
+    "enterPassword": "输入密码",
+    "retry": "重试"
+  },
+  "intruders": "查蹭网"
+}

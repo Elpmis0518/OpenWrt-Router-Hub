@@ -1,0 +1,6 @@
+/etc/openclash/config/
+/etc/openclash/custom/
+/etc/openclash/overwrite/
+/etc/openclash/proxy_provider/
+/etc/openclash/rule_provider/
+/etc/openclash/history/

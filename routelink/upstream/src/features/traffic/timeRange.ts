@@ -1,0 +1,119 @@
+import type { AppLanguage, AppT } from '@/i18n';
+import { formatClock, formatDayTime } from '@/utils/dates';
+
+export type PresetId = 'lastHour' | 'today' | 'yesterday' | 'last7d' | 'thisMonth' | 'lastMonth' | 'last30d';
+export const PRESETS: readonly PresetId[] = [
+  'lastHour',
+  'today',
+  'yesterday',
+  'last7d',
+  'thisMonth',
+  'lastMonth',
+  'last30d',
+];
+
+/** Whole hours 0–23, `to` exclusive; from > to crosses midnight (22 → 6), from = to is the whole day. */
+export interface HourWindow {
+  from: number;
+  to: number;
+}
+
+export type TimeRange =
+  | { kind: 'preset'; id: PresetId; hours?: HourWindow }
+  /** Epoch seconds. */
+  | { kind: 'custom'; start: number; end: number; hours?: HourWindow };
+
+export const DEFAULT_RANGE: TimeRange = { kind: 'preset', id: 'today' };
+
+/** The plugin refuses longer queries. */
+const MAX_SPAN_SEC = 3653 * 86_400;
+
+const toSec = (d: Date) => Math.floor(d.getTime() / 1000);
+
+/** Local midnight of `d` shifted by `days` (calendar days: 23- and 25-hour days come out right). */
+function midnight(d: Date, days = 0): Date {
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
+  m.setHours(0, 0, 0, 0);
+  return m;
+}
+
+const monthStart = (d: Date, months = 0) => new Date(d.getFullYear(), d.getMonth() + months, 1);
+
+/** Epoch seconds in the phone's time zone; the end is now or the end of the period, whichever is earlier. */
+export function resolveRange(r: TimeRange, now: Date): { start: number; end: number } {
+  const nowSec = toSec(now);
+  if (r.kind === 'custom') return { start: r.start, end: Math.min(r.end, nowSec) };
+  switch (r.id) {
+    case 'lastHour':
+      return { start: nowSec - 3600, end: nowSec };
+    case 'today':
+      return { start: toSec(midnight(now)), end: nowSec };
+    case 'yesterday':
+      return { start: toSec(midnight(now, -1)), end: toSec(midnight(now)) };
+    case 'last7d':
+      return { start: nowSec - 7 * 86_400, end: nowSec };
+    case 'thisMonth':
+      return { start: toSec(monthStart(now)), end: nowSec };
+    case 'lastMonth':
+      return { start: toSec(monthStart(now, -1)), end: toSec(monthStart(now)) };
+    case 'last30d':
+      return { start: nowSec - 30 * 86_400, end: nowSec };
+  }
+}
+
+/** Bit n = hour n of the day, as the plugin's `hours` parameter expects. */
+export function hoursMask(w: HourWindow): number {
+  if (w.from === w.to) return 0xffffff;
+  let mask = 0;
+  for (let h = w.from; h !== w.to; h = (h + 1) % 24) mask |= 1 << h;
+  return mask;
+}
+
+export function validateCustom(start: number, end: number, now: number): 'ok' | 'empty' | 'future' | 'too-long' {
+  if (end <= start) return 'empty';
+  if (start > now) return 'future';
+  if (end - start > MAX_SPAN_SEC) return 'too-long';
+  return 'ok';
+}
+
+/** Compact route parameter: "today", "last7d@20-23", "1791100000-1791186400". */
+export function serializeRange(r: TimeRange): string {
+  const base = r.kind === 'preset' ? r.id : `${r.start}-${r.end}`;
+  return r.hours ? `${base}@${r.hours.from}-${r.hours.to}` : base;
+}
+
+export function parseRange(s: string | undefined): TimeRange | null {
+  if (!s) return null;
+  const [base, hoursPart] = s.split('@');
+  const h = hoursPart ? /^(\d{1,2})-(\d{1,2})$/.exec(hoursPart) : null;
+  const hours = h && +h[1] < 24 && +h[2] < 24 ? { from: +h[1], to: +h[2] } : undefined;
+  if ((PRESETS as readonly string[]).includes(base)) return { kind: 'preset', id: base as PresetId, hours };
+  const c = /^(\d+)-(\d+)$/.exec(base);
+  return c && +c[1] < +c[2] ? { kind: 'custom', start: +c[1], end: +c[2], hours } : null;
+}
+
+/** "Oct 5, 00:00 – 13:47 · daily 20:00–23:00" / "10月5日 00:00 – 13:47 · 每天 20–23 点". */
+export function rangeLabel(t: AppT, r: TimeRange, lang: AppLanguage, now = new Date()): string {
+  const { start, end } = resolveRange(r, now);
+  const a = new Date(start * 1000);
+  const b = new Date(end * 1000);
+  const year = a.getFullYear() !== now.getFullYear() || b.getFullYear() !== now.getFullYear();
+  const sameDay = a.toDateString() === b.toDateString();
+  const text = `${formatDayTime(start, lang, { year })} – ${sameDay ? formatClock(end) : formatDayTime(end, lang, { year })}`;
+  return r.hours ? `${text} · ${t('traffic:range.hours', { from: r.hours.from, to: r.hours.to })}` : text;
+}
+
+/**
+ * Hour-of-day filters work on the plugin's hourly data only (kept `hourDays` days); for older ranges the
+ * filter is dropped and the page says so, rather than the plugin rejecting the query.
+ */
+export function usableHoursMask(
+  r: TimeRange,
+  start: number,
+  now: Date,
+  hourDays: number,
+): { mask?: number; dropped: boolean } {
+  if (!r.hours) return { dropped: false };
+  const oldestHourly = Math.floor(now.getTime() / 1000) - hourDays * 86_400;
+  return start >= oldestHourly ? { mask: hoursMask(r.hours), dropped: false } : { dropped: true };
+}

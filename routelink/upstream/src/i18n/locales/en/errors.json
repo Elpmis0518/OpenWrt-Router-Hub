@@ -1,0 +1,54 @@
+{
+  "generic": "Something went wrong: {{message}}",
+  "connection": {
+    "offline": "Can't reach the router",
+    "auth": "Wrong user name or password",
+    "not-openwrt": "This address isn't an OpenWrt router, or LuCI isn't installed",
+    "tls-untrusted": "The router's HTTPS certificate isn't trusted",
+    "tls-mismatch": "The router's certificate doesn't match the one you trusted",
+    "permission": "This account isn't allowed to do that",
+    "protocol": "The router sent an unexpected response (HTTP {{status}})"
+  },
+  "connectionHint": {
+    "offline": "Make sure your phone is on the same network as the router and that the router is on."
+  },
+  "action": {
+    "name-empty": "Name can't be empty",
+    "name-too-long": "Names can be at most 64 characters",
+    "ip-invalid": "That isn't a valid IP address",
+    "ip-in-use": "This IP is already reserved for another device",
+    "not-static": "This device has no static IP",
+    "already-blocked": "This device is already blocked",
+    "not-blocked": "This device isn't blocked",
+    "not-wireless": "Only Wi-Fi devices can be disconnected",
+    "wol-failed": "Wake-on-LAN failed: {{message}}",
+    "wol-unavailable": "etherwake isn't installed on the router, and iOS can't send wake packets itself",
+    "log-unavailable": "Couldn't read the log: {{message}}",
+    "cron-changed": "The scheduled tasks were changed elsewhere; refresh and try again",
+    "cron-reload": "Saved, but cron did not reload: {{message}}",
+    "vlan-in-use": "An interface uses this VLAN ({{message}}); it can't be deleted",
+    "filtering-on": "VLAN filtering is already on for this bridge",
+    "filtering-in-use": "Other VLANs or tagged ports exist; VLAN filtering can't simply be switched off",
+    "no-private-key": "This peer made its own keys; without its private key on the router there is nothing to export",
+    "backup-invalid": "This is not an OpenWrt configuration backup",
+    "backup-unsupported": "Backups can't be downloaded over this connection",
+    "restore-failed": "Restoring the backup failed: {{message}}",
+    "reset-failed": "The factory reset failed: {{message}}",
+    "no-space": "The router does not have enough free memory for this firmware file",
+    "flash-failed": "Flashing the firmware failed: {{message}}",
+    "ap-unreachable": "The access point this device is on is not reachable",
+    "target-invalid": "Enter a host name or an IP address"
+  },
+  "offlineNamed": "Can't reach {{name}}",
+  "relogin": {
+    "title": "Sign in to {{name}} again",
+    "action": "Enter Password",
+    "prompt": "Password for {{name}}",
+    "submit": "Sign In"
+  },
+  "boundary": {
+    "title": "This screen ran into a problem",
+    "message": "Try again; if it keeps happening, please report it on GitHub.",
+    "retry": "Try Again"
+  }
+}

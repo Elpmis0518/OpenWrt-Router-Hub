@@ -1,0 +1,166 @@
+import { useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+
+import { DiagnosticsSection } from '@/features/diagnostics/DiagnosticsSection';
+import { ConnectionBanner } from '@/features/routers/ConnectionBanner';
+import { RouterSwitcherCapsule } from '@/features/routers/RouterSwitcherCapsule';
+import { isAvailable } from '@/api/capabilities';
+import { useCapabilities, useInterfaces } from '@/hooks/router-queries';
+import { useLang, useT } from '@/i18n';
+import { EmptyState, ErrorState, Skeleton } from '@/ui/Feedback';
+import { ListRow, ListSection } from '@/ui/ListSection';
+import { Screen } from '@/ui/Screen';
+import { StatusDot } from '@/ui/Status';
+import { spacing } from '@/ui/theme/tokens';
+import { formatDuration, protoLabel } from '@/utils/format';
+
+/** Network tab: every logical interface with its state, address and traffic. */
+export default function Network() {
+  const t = useT();
+  const lang = useLang();
+  const nav = useRouter();
+  const interfaces = useInterfaces();
+  const caps = useCapabilities();
+
+  return (
+    <Screen
+      title={t('tabs.network')}
+      headerLeft={<RouterSwitcherCapsule />}
+      onRefresh={() => interfaces.refetch()}
+      top={
+        interfaces.data ? (
+          <ConnectionBanner
+            error={interfaces.error}
+            onRetry={() => void interfaces.refetch()}
+            updatedAt={interfaces.dataUpdatedAt}
+          />
+        ) : null
+      }>
+      <DiagnosticsSection />
+      <ListSection title={t('network:statistics')}>
+        <ListRow
+          title={t('traffic:title')}
+          icon="chart"
+          chevron
+          onPress={() => nav.push('/network/traffic')}
+          testID="network-traffic"
+        />
+        <ListRow
+          title={t('traffic:wan.title')}
+          icon="calendar"
+          chevron
+          onPress={() => nav.push('/network/traffic/wan')}
+          testID="network-wan-history"
+        />
+      </ListSection>
+      <ListSection title={t('network:tools')}>
+        <ListRow
+          title={t('network:routes.title')}
+          icon="route"
+          chevron
+          onPress={() => nav.push('/network/routes')}
+          testID="network-routes"
+        />
+        <ListRow
+          title={t('network:vlan.title')}
+          icon="vlan"
+          chevron
+          onPress={() => nav.push('/network/vlan')}
+          testID="network-vlan"
+        />
+        <ListRow
+          title={t('network:firewall.title')}
+          icon="firewall"
+          chevron
+          onPress={() => nav.push('/network/firewall')}
+          testID="network-firewall"
+        />
+        <ListRow
+          title={t('network:connections.title')}
+          icon="connections"
+          chevron
+          onPress={() => nav.push('/network/connections')}
+          testID="network-connections"
+        />
+      </ListSection>
+      <ListSection title={t('network:services')}>
+        {isAvailable(caps.data, 'network.wireguard') ? (
+          <ListRow
+            title={t('network:wireguard.title')}
+            icon="vpn"
+            chevron
+            onPress={() => nav.push('/network/wireguard')}
+            testID="network-wireguard"
+          />
+        ) : null}
+        <ListRow
+          title={t('network:openvpn.title')}
+          icon="lock"
+          chevron
+          onPress={() => nav.push('/network/openvpn')}
+          testID="network-openvpn"
+        />
+        <ListRow
+          title={t('network:ddns.title')}
+          icon="globe"
+          chevron
+          onPress={() => nav.push('/network/ddns')}
+          testID="network-ddns"
+        />
+        <ListRow
+          title={t('network:sqm.title')}
+          icon="speed"
+          chevron
+          onPress={() => nav.push('/network/sqm')}
+          testID="network-sqm"
+        />
+        <ListRow
+          title={t('network:adblock.title')}
+          icon="adblock"
+          chevron
+          onPress={() => nav.push('/network/adblock')}
+          testID="network-adblock"
+        />
+      </ListSection>
+      {interfaces.data ? (
+        interfaces.data.length ? (
+          <ListSection title={t('network:interfaces')}>
+            {interfaces.data.map((i) => {
+              const first = i.ipv4[0] ?? i.ipv6[0];
+              const subtitle = [
+                protoLabel(i.proto, lang),
+                i.up ? (first ? `${first.address}/${first.mask}` : t('network:noAddress')) : t('network:down'),
+              ];
+              return (
+                <ListRow
+                  key={i.name}
+                  title={i.name.toUpperCase()}
+                  subtitle={subtitle.join(' · ')}
+                  value={i.up ? formatDuration(i.uptimeSec, lang) : undefined}
+                  left={<StatusDot status={i.up ? 'online' : i.errors.length ? 'warning' : 'offline'} />}
+                  chevron
+                  onPress={() => nav.push(`/network/${encodeURIComponent(i.name)}`)}
+                  testID={`iface-${i.name}`}
+                />
+              );
+            })}
+          </ListSection>
+        ) : (
+          <EmptyState icon="network" title={t('network:empty')} />
+        )
+      ) : interfaces.isError ? (
+        <ErrorState error={interfaces.error} onRetry={() => void interfaces.refetch()} />
+      ) : (
+        <View style={styles.loading}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} height={52} radius={14} />
+          ))}
+        </View>
+      )}
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  loading: { gap: spacing.s },
+});

@@ -1,0 +1,29 @@
+# Security: never commit keystores, private keys, credentials, or local env files
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+*.sec
+*-private.pem
+.env
+.env.*
+keystore-info.txt
+
+# Local build/temp directories (anchored to repo root so routelink/upstream/openwrt/ is tracked)
+/wrt/
+/openwrt/
+/build-reports/
+/upload/
+.DS_Store
+__pycache__/
+*.pyc
+
+# Keep RouteLink upstream public feed verification key
+!routelink/upstream/openwrt/feed/keys/*.pem
+
+# RouteLink local dependencies & generated native projects
+routelink/upstream/node_modules/
+routelink/upstream/android/
+routelink/upstream/ios/
+routelink/upstream/.expo/
+routelink/upstream/build/

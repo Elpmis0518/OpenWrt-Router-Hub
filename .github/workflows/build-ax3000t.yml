@@ -1,0 +1,293 @@
+name: Build AX3000T (LEDE)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref/SHA to checkout'
+        required: false
+        default: ''
+        type: string
+      TEST:
+        description: 'Generate .config only without compiling firmware'
+        required: false
+        default: false
+        type: boolean
+      skip_pages:
+        description: 'Skip GitHub Pages deploy (when orchestrated by daily-sync-and-build)'
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      TEST:
+        description: '仅输出配置文件，不编译固件'
+        required: false
+        default: false
+        type: boolean
+
+permissions: write-all
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  REPO_URL: https://github.com/coolsnowwolf/lede
+  REPO_BRANCH: master
+  TZ: Asia/Shanghai
+  AX_TEST: ${{ inputs.TEST || false }}
+
+jobs:
+  build:
+    name: Xiaomi AX3000T (LEDE)
+    runs-on: ubuntu-22.04
+    outputs:
+      cache_prefix: ${{ steps.init.outputs.cache_prefix }}
+      cache_key: ${{ steps.clone.outputs.cache_key }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Initialize Build Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext \
+            genisoimage git gperf haveged help2man intltool jq libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev \
+            libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool llvm lrzsz libnsl-dev ninja-build p7zip p7zip-full patch pkgconf \
+            python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion \
+            swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+
+          sudo timedatectl set-timezone "$TZ"
+
+          sudo mkdir -p /mnt/build_ax3000t
+          sudo chown "$USER:$USER" /mnt/build_ax3000t
+          ln -sfn /mnt/build_ax3000t "$GITHUB_WORKSPACE/openwrt"
+
+      - name: Initialize Build Metadata
+        id: init
+        run: |
+          set -euo pipefail
+          AX_CACHE_PREFIX="ax3000t-lede-master-mediatek-filogic"
+          {
+            echo "RELEASE_STAMP=$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M%S')"
+            echo "AX_CACHE_PREFIX=${AX_CACHE_PREFIX}"
+          } >> "$GITHUB_ENV"
+          echo "cache_prefix=${AX_CACHE_PREFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Clone LEDE Source
+        id: clone
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --single-branch --branch "$REPO_BRANCH" "$REPO_URL" ./openwrt/
+          LEDE_HASH="$(git -C ./openwrt rev-parse HEAD)"
+          AX_CACHE_KEY="${AX_CACHE_PREFIX}-${LEDE_HASH}"
+          echo "LEDE_HASH=${LEDE_HASH}" >> "$GITHUB_ENV"
+          echo "AX_CACHE_KEY=${AX_CACHE_KEY}" >> "$GITHUB_ENV"
+          echo "cache_key=${AX_CACHE_KEY}" >> "$GITHUB_OUTPUT"
+
+          ./shared/scripts/clean-mirrors.sh ./openwrt
+
+      - name: Restore Build Cache
+        id: cache-restore
+        if: ${{ !inputs.TEST }}
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ env.AX_CACHE_KEY }}
+          restore-keys: ${{ env.AX_CACHE_PREFIX }}-
+          path: |
+            ./openwrt/.ccache
+            ./openwrt/staging_dir/host*
+            ./openwrt/staging_dir/tool*
+
+      - name: Prepare Restored Build Cache
+        if: ${{ !inputs.TEST && steps.cache-restore.outputs.cache-matched-key != '' }}
+        run: |
+          find ./openwrt/staging_dir -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
+            find "$DIR" -type f -exec touch {} +
+          done
+          mkdir -p ./openwrt/tmp
+          echo "1" > ./openwrt/tmp/.build
+          echo "Restored AX3000T build cache: ${{ steps.cache-restore.outputs.cache-matched-key }}"
+
+      - name: Inject Pre-Feeds Packages (UA3F & diy-part1)
+        run: ./devices/ax3000t/scripts/inject-packages.sh "$GITHUB_WORKSPACE/openwrt" pre-feeds
+
+      - name: Update & Install Feeds
+        run: |
+          cd ./openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Inject Post-Feeds Packages, mac80211 Patch & Common Overlay
+        run: |
+          set -euo pipefail
+          ./devices/ax3000t/scripts/inject-packages.sh "$GITHUB_WORKSPACE/openwrt" post-feeds
+          python3 ./devices/ax3000t/scripts/patch-mac80211.py "$GITHUB_WORKSPACE/openwrt"
+          ./shared/scripts/apply-common-files.sh "$GITHUB_WORKSPACE/openwrt"
+          ./shared/scripts/apply-hub-overlay.sh "$GITHUB_WORKSPACE/openwrt" ax3000t "ax3000t-${RELEASE_STAMP}"
+
+      - name: Apply Declarative Config & Resolve Dependencies
+        run: |
+          set -euo pipefail
+          cp -f ./devices/ax3000t/upstream/.config ./openwrt/.config
+          python3 ./devices/ax3000t/scripts/apply-config.py ./openwrt/.config ./devices/ax3000t/packages.conf
+          (
+            cd ./openwrt
+            make defconfig
+            echo "=== Key Config Verification ==="
+            grep -E '^(CONFIG_DEVEL=|CONFIG_CCACHE=|# CONFIG_LUCI_LANG_zh_Hans|CONFIG_PACKAGE_(ua3f|routelinkd|luci-app-routelink|luci-app-openclash|luci-app-wol|luci-proto-wireguard|openvpn-openssl|luci-app-openvpn|luci-app-ddns|luci-app-sqm|luci-app-adblock-fast|kmod-(ipt-ipopt|nft-compat|ifb|sched-cake|sched-core|sched-flower|wireguard))=)' .config || true
+            grep -Fxq 'CONFIG_CCACHE=y' .config || { echo "::error::CONFIG_CCACHE=y was dropped by make defconfig!"; exit 1; }
+          )
+
+      - name: Download Packages
+        if: ${{ !inputs.TEST }}
+        run: |
+          set -euo pipefail
+          cd ./openwrt
+          make download -j"$(nproc)" || make download -j1 V=s
+          find dl -type f -size -1024c -print -delete
+
+      - name: Compile Firmware
+        if: ${{ !inputs.TEST }}
+        run: |
+          set -euo pipefail
+          cd ./openwrt
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Save Build Cache
+        if: ${{ !inputs.TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ env.AX_CACHE_KEY }}
+          path: |
+            ./openwrt/.ccache
+            ./openwrt/staging_dir/host*
+            ./openwrt/staging_dir/tool*
+
+      - name: Package Firmware & Standalone RouteLink IPK
+        env:
+          OPENWRT_USIGN_KEY: ${{ secrets.OPENWRT_USIGN_KEY }}
+        run: |
+          set -euo pipefail
+          cd ./openwrt
+          rm -rf ./upload && mkdir -p ./upload
+          cp -f ./.config "./upload/Config-ax3000t-${RELEASE_STAMP}.txt"
+
+          if [[ "$AX_TEST" != "true" ]]; then
+            # Collect standalone RouteLink .ipk packages BEFORE cleaning packages/
+            RL_FEED_DIR="${RUNNER_TEMP}/ax3000t-routelink-feed"
+            rm -rf "${RL_FEED_DIR}" && mkdir -p "${RL_FEED_DIR}"
+            RL_COUNT=0
+            while IFS= read -r PKG; do
+              [ -n "$PKG" ] || continue
+              cp -f "$PKG" "${RL_FEED_DIR}/"
+              RL_COUNT=$((RL_COUNT + 1))
+            done < <(find ./bin/packages/ -type f -iname '*routelink*.ipk' | sort)
+            echo "Collected ${RL_COUNT} standalone RouteLink .ipk package(s)."
+            if [ "$RL_COUNT" -eq 0 ]; then
+              echo "::error::No standalone *routelink*.ipk packages found in bin/packages/!"
+              exit 1
+            fi
+
+            # Generate opkg feed index (Packages / Packages.gz) with relative filenames and usign-sign Packages.sig
+            if [ -z "${OPENWRT_USIGN_KEY}" ]; then
+              echo "::error::Missing required OPENWRT_USIGN_KEY secret for signing RouteLink opkg feed!"
+              exit 1
+            fi
+            OPENWRT_ROOT="$PWD"
+            (cd "${RL_FEED_DIR}" && MKHASH="${OPENWRT_ROOT}/staging_dir/host/bin/mkhash" "${OPENWRT_ROOT}/scripts/ipkg-make-index.sh" . > Packages)
+            gzip -9nc "${RL_FEED_DIR}/Packages" > "${RL_FEED_DIR}/Packages.gz"
+            USIGN_HOST="${OPENWRT_ROOT}/staging_dir/host/bin/usign"
+            TMP_KEY="$(mktemp "${RUNNER_TEMP}/usign-key.XXXXXX.sec")"
+            trap 'rm -f "${TMP_KEY}"' EXIT
+            umask 077
+            printf '%s\n' "${OPENWRT_USIGN_KEY}" > "${TMP_KEY}"
+            umask 022
+            "${USIGN_HOST}" -S -m "${RL_FEED_DIR}/Packages" -s "${TMP_KEY}" -x "${RL_FEED_DIR}/Packages.sig"
+            "${USIGN_HOST}" -V -m "${RL_FEED_DIR}/Packages" -p "${GITHUB_WORKSPACE}/routelink/feed/keys/d39736bb5c3eb4ef" -x "${RL_FEED_DIR}/Packages.sig"
+            rm -f "${TMP_KEY}"
+            trap - EXIT
+            cp -f "${RL_FEED_DIR}"/*.ipk "${RL_FEED_DIR}/Packages" "${RL_FEED_DIR}/Packages.gz" "${RL_FEED_DIR}/Packages.sig" ./upload/
+
+            # Collect AX3000T firmware images & manifest only
+            find ./bin/targets/ -maxdepth 4 -type d -name packages -exec rm -rf {} +
+            find ./bin/targets/ -type f \( -iname '*xiaomi_mi-router-ax3000t*' -o -iname '*.manifest' \) -exec cp -f {} ./upload/ \;
+
+            (cd ./upload && sha256sum * > SHA256SUMS)
+            ls -lh ./upload
+          fi
+
+      - name: Upload Config Artifact (TEST mode)
+        if: ${{ inputs.TEST }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ax3000t-config-${{ env.RELEASE_STAMP }}
+          path: ./openwrt/upload/Config-*.txt
+          retention-days: 7
+
+      - name: Publish Release & Prune Old AX3000T Releases
+        if: ${{ !inputs.TEST }}
+        run: |
+          set -euo pipefail
+          TAG="ax3000t-${RELEASE_STAMP}"
+          NOTES_FILE="${RUNNER_TEMP}/ax3000t-release-notes.md"
+          {
+            printf '## Xiaomi AX3000T — LEDE (`%s`)\n\n' "${REPO_BRANCH}"
+            printf -- '- **Source**: %s (`%s`)\n' "${REPO_URL}" "${LEDE_HASH:0:12}"
+            printf -- '- **Device**: `xiaomi_mi-router-ax3000t`\n'
+            printf -- '- **Included**: Firmware images + standalone `*routelink*.ipk` packages + `.config` + `SHA256SUMS`\n'
+            printf -- '- **Highlights**: OpenClash (dev + Meta arm64 core), RouteLink (firewall3 iptables fallback), WireGuard, OpenVPN, DDNS, SQM, Adblock-Fast, WoL, UA3F, ddns-go, Argon\n'
+          } > "${NOTES_FILE}"
+
+          gh release create "$TAG" ./openwrt/upload/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "AX3000T LEDE (${RELEASE_STAMP})" \
+            --notes-file "${NOTES_FILE}"
+
+          ./shared/scripts/prune-releases.sh "ax3000t-" 3
+
+  cache-rollover:
+    name: Roll AX3000T Cache Generations
+    needs: build
+    if: ${{ !inputs.TEST && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ax3000t-cache-rollover-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Roll Build Cache
+        continue-on-error: true
+        run: ./shared/scripts/roll-cache.sh "${{ needs.build.outputs.cache_prefix }}" "${{ needs.build.outputs.cache_key }}"
+
+  publish-pages:
+    name: Update Pages (Firmware & RouteLink Feed)
+    needs: build
+    if: ${{ !inputs.TEST && !inputs.skip_pages && needs.build.result == 'success' }}
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+    secrets: inherit

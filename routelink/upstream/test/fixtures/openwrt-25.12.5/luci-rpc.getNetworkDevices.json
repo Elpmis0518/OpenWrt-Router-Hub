@@ -1,0 +1,471 @@
+{
+  "ok": true,
+  "data": {
+    "lo": {
+      "name": "lo",
+      "wireless": false,
+      "up": true,
+      "mtu": 65536,
+      "qlen": 1000,
+      "devtype": "ethernet",
+      "ipaddrs": [
+        {
+          "address": "127.0.0.1",
+          "netmask": "255.0.0.0"
+        }
+      ],
+      "ip6addrs": [
+        {
+          "address": "::1",
+          "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+        }
+      ],
+      "type": 772,
+      "ifindex": 1,
+      "stats": {
+        "rx_bytes": 31034,
+        "tx_bytes": 31034,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 302,
+        "rx_packets": 302,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": false,
+        "promisc": false,
+        "loopback": true,
+        "noarp": false,
+        "multicast": false,
+        "pointtopoint": false
+      },
+      "link": {
+        "carrier": true,
+        "changes": 0,
+        "up_count": 0,
+        "down_count": 0
+      }
+    },
+    "br-lan": {
+      "name": "br-lan",
+      "bridge": true,
+      "ports": [
+        "eth0",
+        "phy1-ap0",
+        "eth3",
+        "phy2-ap0",
+        "eth2"
+      ],
+      "id": "7fff.525400123456",
+      "stp": false,
+      "wireless": false,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "bridge",
+      "ipaddrs": [
+        {
+          "address": "192.168.1.1",
+          "netmask": "255.255.255.0",
+          "broadcast": "192.168.1.255"
+        }
+      ],
+      "ip6addrs": [
+        {
+          "address": "fd42:755c:eeba::1",
+          "netmask": "ffff:ffff:ffff:fff0::"
+        },
+        {
+          "address": "fe80::5054:ff:fe12:3456",
+          "netmask": "ffff:ffff:ffff:ffff::"
+        }
+      ],
+      "mac": "52:54:00:12:34:56",
+      "type": 1,
+      "ifindex": 22,
+      "stats": {
+        "rx_bytes": 491420,
+        "tx_bytes": 13714950,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 10558,
+        "rx_packets": 10627,
+        "multicast": 1,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "speed": -1,
+        "duplex": "unknown",
+        "carrier": true,
+        "changes": 2,
+        "up_count": 1,
+        "down_count": 1
+      }
+    },
+    "phy1-ap0": {
+      "name": "phy1-ap0",
+      "master": "br-lan",
+      "wireless": true,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "wlan",
+      "ipaddrs": [],
+      "ip6addrs": [],
+      "mac": "02:00:00:00:01:00",
+      "type": 1,
+      "ifindex": 14,
+      "stats": {
+        "rx_bytes": 0,
+        "tx_bytes": 13772,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 106,
+        "rx_packets": 0,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "carrier": true,
+        "changes": 2,
+        "up_count": 1,
+        "down_count": 1
+      }
+    },
+    "eth3": {
+      "name": "eth3",
+      "master": "br-lan",
+      "wireless": false,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "ethernet",
+      "ipaddrs": [],
+      "ip6addrs": [],
+      "mac": "52:54:00:12:34:59",
+      "type": 1,
+      "ifindex": 5,
+      "stats": {
+        "rx_bytes": 0,
+        "tx_bytes": 10542,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 95,
+        "rx_packets": 0,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "speed": -1,
+        "duplex": "unknown",
+        "carrier": true,
+        "changes": 6,
+        "up_count": 3,
+        "down_count": 3
+      }
+    },
+    "eth1": {
+      "name": "eth1",
+      "wireless": false,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "ethernet",
+      "ipaddrs": [
+        {
+          "address": "10.0.2.15",
+          "netmask": "255.255.255.0",
+          "broadcast": "10.0.2.255"
+        }
+      ],
+      "ip6addrs": [
+        {
+          "address": "fec0::5054:ff:fe12:3457",
+          "netmask": "ffff:ffff:ffff:ffff::"
+        },
+        {
+          "address": "fe80::5054:ff:fe12:3457",
+          "netmask": "ffff:ffff:ffff:ffff::"
+        }
+      ],
+      "mac": "52:54:00:12:34:57",
+      "type": 1,
+      "ifindex": 3,
+      "stats": {
+        "rx_bytes": 3650741,
+        "tx_bytes": 43229,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 554,
+        "rx_packets": 2712,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "speed": -1,
+        "duplex": "unknown",
+        "carrier": true,
+        "changes": 2,
+        "up_count": 1,
+        "down_count": 1
+      }
+    },
+    "phy2-ap0": {
+      "name": "phy2-ap0",
+      "master": "br-lan",
+      "wireless": true,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "wlan",
+      "ipaddrs": [],
+      "ip6addrs": [],
+      "mac": "02:00:00:00:02:00",
+      "type": 1,
+      "ifindex": 15,
+      "stats": {
+        "rx_bytes": 0,
+        "tx_bytes": 13560,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 104,
+        "rx_packets": 0,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "carrier": true,
+        "changes": 2,
+        "up_count": 1,
+        "down_count": 1
+      }
+    },
+    "wg0": {
+      "name": "wg0",
+      "wireless": false,
+      "up": true,
+      "mtu": 1420,
+      "qlen": 1000,
+      "devtype": "wireguard",
+      "ipaddrs": [
+        {
+          "address": "10.9.0.1",
+          "netmask": "255.255.255.0",
+          "remote": "10.9.0.255"
+        }
+      ],
+      "ip6addrs": [],
+      "stats": {
+        "rx_bytes": 0,
+        "tx_bytes": 0,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 0,
+        "rx_packets": 0,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": false,
+        "promisc": false,
+        "loopback": false,
+        "noarp": true,
+        "multicast": false,
+        "pointtopoint": true
+      },
+      "link": {
+        "carrier": true,
+        "changes": 0,
+        "up_count": 0,
+        "down_count": 0
+      }
+    },
+    "hwsim0": {
+      "name": "hwsim0",
+      "wireless": false,
+      "up": false,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "ethernet",
+      "ipaddrs": [],
+      "ip6addrs": [],
+      "type": 803,
+      "ifindex": 6,
+      "stats": {
+        "rx_bytes": 0,
+        "tx_bytes": 0,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 0,
+        "rx_packets": 0,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": false,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "carrier": false,
+        "changes": 0,
+        "up_count": 0,
+        "down_count": 0
+      }
+    },
+    "eth2": {
+      "name": "eth2",
+      "master": "br-lan",
+      "wireless": false,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "ethernet",
+      "ipaddrs": [],
+      "ip6addrs": [],
+      "mac": "52:54:00:12:34:58",
+      "type": 1,
+      "ifindex": 4,
+      "stats": {
+        "rx_bytes": 0,
+        "tx_bytes": 10542,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 95,
+        "rx_packets": 0,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "speed": -1,
+        "duplex": "unknown",
+        "carrier": true,
+        "changes": 6,
+        "up_count": 3,
+        "down_count": 3
+      }
+    },
+    "eth0": {
+      "name": "eth0",
+      "master": "br-lan",
+      "wireless": false,
+      "up": true,
+      "mtu": 1500,
+      "qlen": 1000,
+      "devtype": "ethernet",
+      "ipaddrs": [],
+      "ip6addrs": [],
+      "mac": "52:54:00:12:34:56",
+      "type": 1,
+      "ifindex": 2,
+      "stats": {
+        "rx_bytes": 1304283,
+        "tx_bytes": 28250436,
+        "tx_errors": 0,
+        "rx_errors": 0,
+        "tx_packets": 21409,
+        "rx_packets": 21565,
+        "multicast": 0,
+        "collisions": 0,
+        "rx_dropped": 0,
+        "tx_dropped": 0
+      },
+      "flags": {
+        "up": true,
+        "broadcast": true,
+        "promisc": false,
+        "loopback": false,
+        "noarp": false,
+        "multicast": true,
+        "pointtopoint": false
+      },
+      "link": {
+        "speed": -1,
+        "duplex": "unknown",
+        "carrier": true,
+        "changes": 8,
+        "up_count": 4,
+        "down_count": 4
+      }
+    }
+  }
+}

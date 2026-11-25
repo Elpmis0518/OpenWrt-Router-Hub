@@ -1,0 +1,221 @@
+{
+  "title": "Wi-Fi",
+  "noRadios": "This router has no wireless hardware",
+  "noRadiosHint": "No wireless card was found, or its driver isn't loaded.",
+  "band": {
+    "2g": "2.4 GHz",
+    "5g": "5 GHz",
+    "6g": "6 GHz",
+    "60g": "60 GHz",
+    "unknown": "Wireless"
+  },
+  "radioSettings": "Radio Settings",
+  "channelValue": "Channel {{channel}}",
+  "auto": "Auto",
+  "default": "Default",
+  "off": "Off",
+  "down": "Not running",
+  "hidden": "Hidden",
+  "clients": "{{count}} devices",
+  "noNetworks": "No Wi-Fi networks on this radio",
+  "scan": "Scan Nearby",
+  "radio": {
+    "channel": "Channel",
+    "width": "Channel Width",
+    "txpower": "Transmit Power",
+    "country": "Country Code",
+    "countryHint": "Two letters, e.g. US or DE. It decides the allowed channels and maximum power.",
+    "countryInvalid": "Enter a two-letter country code",
+    "enabled": "Radio On",
+    "dfs": "Needs radar detection (DFS); slower to start",
+    "save": "Save",
+    "confirmTitle": "Apply Radio Settings?",
+    "consequenceRestart": "Wi-Fi restarts and every wireless device drops for 10–30 seconds",
+    "consequenceRollback": "If the app can't reach the router within 90 seconds, the change is undone automatically",
+    "noChanges": "Nothing changed"
+  },
+  "network": {
+    "ssid": "Name (SSID)",
+    "encryption": "Security",
+    "password": "Password",
+    "hidden": "Hidden Network",
+    "hiddenHint": "Devices will have to type the name to join.",
+    "enabled": "Enabled",
+    "issues": {
+      "ssid-empty": "The name can't be empty",
+      "ssid-too-long": "The name can be at most 32 bytes",
+      "key-required": "This security type needs a password",
+      "key-length": "The password must be 8–63 characters"
+    },
+    "enc": {
+      "none": "None",
+      "psk2": "WPA2 Personal",
+      "psk-mixed": "WPA/WPA2 Personal",
+      "sae": "WPA3 Personal",
+      "sae-mixed": "WPA2/WPA3 Personal",
+      "owe": "Enhanced Open (OWE)",
+      "other": "Other ({{value}})"
+    },
+    "confirmTitle": "Apply Wi-Fi Settings?",
+    "consequenceRestart": "This network restarts and its devices drop for 10–30 seconds",
+    "consequenceRollback": "If the app can't reach the router within 90 seconds, the change is undone automatically",
+    "consequencePhone": "Your phone is on this network: it will disconnect, and you'll rejoin with the new name and password",
+    "consequenceNoRollback": "This can't be undone automatically: if the new settings are wrong, fix them over a cable"
+  },
+  "result": {
+    "applied": "Applied",
+    "rolledBack": "The router got no confirmation within 90 seconds and undid the change"
+  },
+  "reconnect": {
+    "title": "Rejoin Wi-Fi",
+    "body": "The router has the new Wi-Fi settings. Join the network below in your phone's Wi-Fi settings, then come back.",
+    "ssid": "Name",
+    "password": "Password",
+    "step1": "Open Settings → Wi-Fi on your phone",
+    "step2": "Choose the network above and enter the password",
+    "step3": "Come back to RouteLink once connected",
+    "done": "Done"
+  },
+  "scanTitle": "Nearby Wi-Fi",
+  "scanStart": "Start Scan",
+  "scanning": "Scanning, about 10 seconds…",
+  "scanHint": "Devices on this radio may stutter briefly while it scans.",
+  "hiddenNetwork": "Hidden network",
+  "scanEmpty": "No networks found",
+  "scanCount": "{{count}} networks",
+  "qr": {
+    "title": "Share Wi-Fi",
+    "hint": "Point a phone camera at the code to join.",
+    "open": "Open network: no password",
+    "password": "Password",
+    "show": "Show Password",
+    "hidden": "Hidden network",
+    "choose": "Choose a Network",
+    "none": "No Wi-Fi networks to share",
+    "share": "Share"
+  },
+  "macfilter": {
+    "title": "MAC Filter",
+    "row": "MAC Filter",
+    "modes": {
+      "disable": "Off",
+      "allow": "Only Listed",
+      "deny": "Block Listed"
+    },
+    "modeHint": {
+      "disable": "Every device with the password can join.",
+      "allow": "Only the devices below can join this network.",
+      "deny": "The devices below can't join this network."
+    },
+    "list": "Devices",
+    "empty": "No devices in the list",
+    "addDevice": "Add from Devices",
+    "addMac": "Enter a MAC Address",
+    "mac": "MAC Address",
+    "macInvalid": "Not a valid MAC address",
+    "remove": "Remove from List",
+    "thisPhone": "This phone",
+    "randomHint": "Phones often use a random address per network: add them while they are connected.",
+    "save": "Save",
+    "error": {
+      "mac-invalid": "The list has an invalid MAC address",
+      "allow-empty": "An empty list would let nobody join",
+      "locks-out-phone": "This would disconnect this phone from the network (and the app from the router)"
+    },
+    "confirmTitle": "Save the MAC filter of {{ssid}}?",
+    "consequence": "Devices that aren't allowed are disconnected and can't join again",
+    "phoneConsequence": "This phone is on this network: Wi-Fi restarts and the change is applied without the automatic undo"
+  },
+  "guest": {
+    "title": "Guest Network",
+    "section": "Guest Network",
+    "row": "Guest Wi-Fi",
+    "intro": "A separate Wi-Fi for visitors: internet only, no access to your devices or the router's settings.",
+    "noWifi": "This router has no Wi-Fi.",
+    "notGateway": "This router has Wi-Fi but doesn't route to the internet itself (an access point). Set up the guest network together with the main router; the app will support that later.",
+    "create": "Create Guest Network",
+    "ssid": "Name",
+    "password": "Password",
+    "security": "Security",
+    "radios": "Bands",
+    "isolate": "Keep Guests Apart",
+    "isolateHint": "Guests can't see each other's devices.",
+    "subnet": "Guest Addresses",
+    "on": "Guest Wi-Fi",
+    "share": "Share with QR Code",
+    "delete": "Delete Guest Network",
+    "deleteTitle": "Delete the guest network?",
+    "deleteConsequence": "Guests are disconnected; its Wi-Fi, addresses and firewall zone are removed",
+    "createTitle": "Create the guest network {{ssid}}?",
+    "createConsequence": "Wi-Fi restarts for a moment; the router undoes it after 90 seconds if the app loses contact",
+    "toggleTitle": "Turn the guest Wi-Fi {{state}}?",
+    "error": {
+      "ssid": "Enter a name (at most 32 bytes)",
+      "password": "At least 8 characters",
+      "radios": "Choose at least one band"
+    },
+    "security_options": {
+      "sae-mixed": "WPA2/WPA3",
+      "psk2": "WPA2",
+      "none": "Open"
+    }
+  },
+  "schedule": {
+    "section": "Schedule",
+    "row": "Wi-Fi Schedule",
+    "none": "Off",
+    "count": "{{count}}",
+    "title": "Wi-Fi Schedule",
+    "intro": "At the off time the router switches Wi-Fi off, at the on time back on. Devices on these networks are disconnected. Times are in the router's time zone. Each schedule takes effect as soon as it is saved.",
+    "list": "Schedules",
+    "empty": "No schedules yet",
+    "add": "Add Schedule",
+    "edit": "Edit Schedule",
+    "days": "Off on",
+    "off": "Off at",
+    "on": "On at",
+    "nextDayHint": "An on time earlier than the off time means that time on the next day.",
+    "radios": "Radios",
+    "allRadios": "All radios",
+    "offAt": "Off at {{time}}",
+    "onAt": "on at {{time}}",
+    "onNextDay": "on at {{time}} the next day",
+    "offNow": "According to the schedule, Wi-Fi is off now",
+    "deleteSchedule": "Delete This Schedule",
+    "deleteTitle": "Delete this schedule?",
+    "deleteConsequence": "Wi-Fi no longer switches off and on at these times.",
+    "save": "Save",
+    "saved": "Wi-Fi schedule saved",
+    "confirmTitle": "Save the Wi-Fi schedule?",
+    "consequenceCut": "At the off time every device on these networks is disconnected, this phone too.",
+    "consequenceReboot": "If the router restarts during an off period, Wi-Fi stays on until the next scheduled change.",
+    "footer": "Schedules live in the router's scheduled tasks and are managed by the app; the wireless settings stay as they are, so Wi-Fi can be switched on by hand at any time.",
+    "error": {
+      "days": "Pick at least one day",
+      "radios": "Pick at least one radio",
+      "time": "Invalid time",
+      "same": "Off and on can't be the same time"
+    },
+    "summary": "{{off}}, {{on}}"
+  },
+  "sync": {
+    "title": "Also change {{count}} networks of the same name",
+    "hint": "Devices move between access points without dropping only when name, security and password match everywhere.",
+    "consequence": "{{count}} routers apply the change one after another",
+    "done": "Applied on {{count}} routers",
+    "partial": "Not applied on {{count}} routers: {{names}}"
+  },
+  "tools": {
+    "section": "Wi-Fi Tools",
+    "signal": "Signal Monitor",
+    "channels": "Channel Scan & Optimization",
+    "security": "Security Check"
+  },
+  "group": {
+    "needsPassword": "Enter the password of this access point",
+    "needsPasswordHint": "Its password is not saved, so the app cannot read it.",
+    "offline": "Not reachable",
+    "offlineHint": "Its Wi-Fi details are unknown for now. Tap to try again.",
+    "loading": "Loading…"
+  }
+}

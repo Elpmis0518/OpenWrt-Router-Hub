@@ -1,0 +1,122 @@
+name: Daily Sync & Build
+
+on:
+  schedule:
+    # Daily 04:00 Beijing Time (UTC+8)
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      TEST:
+        description: 'Router builds: generate .config only without compiling firmware'
+        required: false
+        default: false
+        type: boolean
+
+permissions: write-all
+
+jobs:
+  sync:
+    name: Sync Upstreams & Apply Patches
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.commit.outputs.ref }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Sync all three upstreams and apply RouteLink patches
+        run: ./shared/scripts/sync-upstreams.sh
+
+      - name: Guard workflows and push synced changes
+        id: commit
+        run: |
+          set -euo pipefail
+          # Safety guard: sync must never modify .github/workflows/
+          if [ -n "$(git status --porcelain -- .github/workflows)" ]; then
+            echo "::error::Upstream sync attempted to modify .github/workflows/!"
+            git status --short -- .github/workflows
+            exit 1
+          fi
+
+          git add -- devices/ routelink/
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            STAMP="$(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M CST')"
+            git commit -m "chore: daily upstream sync (${STAMP})"
+            git push origin HEAD:main
+          else
+            echo "Upstreams are already up to date."
+          fi
+
+          REF="$(git rev-parse HEAD)"
+          echo "Resolved build ref: ${REF}"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+
+  tr3000:
+    name: Build TR3000 (256MB)
+    needs: sync
+    uses: ./.github/workflows/build-tr3000.yml
+    with:
+      ref: ${{ needs.sync.outputs.ref }}
+      TEST: ${{ inputs.TEST || false }}
+      skip_pages: true
+    secrets: inherit
+
+  ax3000t:
+    name: Build AX3000T (LEDE)
+    needs: sync
+    uses: ./.github/workflows/build-ax3000t.yml
+    with:
+      ref: ${{ needs.sync.outputs.ref }}
+      TEST: ${{ inputs.TEST || false }}
+      skip_pages: true
+    secrets: inherit
+
+  routelink:
+    name: Build RouteLink (Android & iOS)
+    needs: sync
+    uses: ./.github/workflows/build-routelink.yml
+    with:
+      ref: ${{ needs.sync.outputs.ref }}
+      skip_pages: true
+    secrets: inherit
+
+  pages:
+    name: Publish Firmware & RouteLink Feed (Pages)
+    needs: [sync, tr3000, ax3000t, routelink]
+    if: ${{ always() && !cancelled() && !inputs.TEST && (needs.tr3000.result == 'success' || needs.ax3000t.result == 'success' || needs.routelink.result == 'success') }}
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      ref: ${{ needs.sync.outputs.ref }}
+    secrets: inherit
+
+  cleanup-runs:
+    name: Cleanup Old Workflow Runs
+    needs: [tr3000, ax3000t, routelink, pages]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old workflow runs
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          CUTOFF="$(date -u -d '7 days ago' +'%Y-%m-%dT%H:%M:%SZ')"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100" |
+            jq -sr --arg cutoff "${CUTOFF}" --argjson self "${GITHUB_RUN_ID}" '
+              [ .[].workflow_runs[] | select(.status == "completed" and .id != $self) ]
+              | group_by(.workflow_id)[]
+              | sort_by(.created_at) | reverse
+              | .[5:][]
+              | select(.created_at < $cutoff)
+              | .id
+            ' |
+            while IFS= read -r RUN_ID; do
+              [ -n "${RUN_ID}" ] || continue
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" >/dev/null || true
+            done

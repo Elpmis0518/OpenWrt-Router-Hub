@@ -1,0 +1,323 @@
+name: Build RouteLink (Android & iOS)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref/SHA to checkout'
+        required: false
+        default: ''
+        type: string
+      skip_pages:
+        description: 'Skip GitHub Pages deploy (when orchestrated by daily-sync-and-build)'
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+
+permissions: write-all
+
+concurrency:
+  group: build-routelink-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  test:
+    name: Typecheck, Lint & Unit Tests
+    runs-on: ubuntu-latest
+    outputs:
+      release_stamp: ${{ steps.meta.outputs.release_stamp }}
+      version_code: ${{ steps.meta.outputs.version_code }}
+      app_version: ${{ steps.meta.outputs.app_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: routelink/upstream/package-lock.json
+
+      - name: Install dependencies
+        working-directory: routelink/upstream
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: routelink/upstream
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: routelink/upstream
+        run: npm run lint
+
+      - name: Unit Tests
+        working-directory: routelink/upstream
+        run: npm test -- --ci
+
+      - name: Emit release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          APP_VER="$(node -p "require('./routelink/upstream/package.json').version")"
+          echo "release_stamp=$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M%S')" >> "$GITHUB_OUTPUT"
+          echo "version_code=$(($(date +%s) / 60))" >> "$GITHUB_OUTPUT"
+          echo "app_version=${APP_VER}" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android Release APK (Signed)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Validate Android Signing Secrets (Fail-Fast)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64}" ] || [ -z "${KEYSTORE_PASSWORD}" ] || [ -z "${KEY_ALIAS}" ]; then
+            echo "::error::Missing required Android signing secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS). Refusing to fall back to debug signing."
+            exit 1
+          fi
+          echo "${KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/release.jks"
+          test -s "${RUNNER_TEMP}/release.jks"
+          echo "RL_KEYSTORE_FILE=${RUNNER_TEMP}/release.jks" >> "$GITHUB_ENV"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: routelink/upstream/package-lock.json
+
+      - name: Install dependencies
+        working-directory: routelink/upstream
+        run: npm ci
+
+      - name: Expo Prebuild (Android)
+        working-directory: routelink/upstream
+        env:
+          EXPO_PUBLIC_HUB_RELEASE_TAG: routelink-${{ needs.test.outputs.release_stamp }}
+          RL_VERSION_CODE: ${{ needs.test.outputs.version_code }}
+        run: npx expo prebuild -p android --no-install
+
+      - name: Build Signed Release APK
+        working-directory: routelink/upstream/android
+        env:
+          EXPO_PUBLIC_HUB_RELEASE_TAG: routelink-${{ needs.test.outputs.release_stamp }}
+          RL_VERSION_CODE: ${{ needs.test.outputs.version_code }}
+          RL_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RL_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Package & Verify Release Signature
+        working-directory: routelink/upstream
+        run: |
+          set -euo pipefail
+          APK_NAME="RouteLink-${{ needs.test.outputs.release_stamp }}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "${APK_NAME}"
+
+          APKSIGNER="$(ls "${ANDROID_HOME}"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          CERT_INFO="$("${APKSIGNER}" verify --print-certs "${APK_NAME}")"
+          echo "${CERT_INFO}" | grep -iE 'certificate (DN|SHA-256)|SHA-256 digest' || echo "${CERT_INFO}"
+
+          if echo "${CERT_INFO}" | grep -qi 'CN=Android Debug'; then
+            echo "::error::Built APK is signed with Android Debug key instead of release keystore!"
+            exit 1
+          fi
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: routelink-android-apk
+          path: routelink/upstream/RouteLink-*.apk
+          retention-days: 3
+
+  ios:
+    name: iOS Unsigned IPA
+    needs: test
+    runs-on: macos-26-intel
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Select Xcode 26 Toolchain
+        run: |
+          set -euo pipefail
+          XCODE_APP="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)"
+          if [ -n "${XCODE_APP}" ]; then
+            sudo xcode-select -s "${XCODE_APP}/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: routelink/upstream/package-lock.json
+
+      - name: Install dependencies
+        working-directory: routelink/upstream
+        run: npm ci
+
+      - name: Expo Prebuild (iOS)
+        working-directory: routelink/upstream
+        env:
+          EXPO_PUBLIC_HUB_RELEASE_TAG: routelink-${{ needs.test.outputs.release_stamp }}
+          RL_VERSION_CODE: ${{ needs.test.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          npx expo prebuild -p ios --no-install
+          cat ios/RouteLink/RouteLink.entitlements
+          ! grep -q aps-environment ios/RouteLink/RouteLink.entitlements
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            routelink/upstream/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ios-pods-${{ runner.os }}-${{ hashFiles('routelink/upstream/package-lock.json', 'routelink/upstream/ios/Podfile') }}
+          restore-keys: ios-pods-${{ runner.os }}-
+
+      - name: Install CocoaPods
+        working-directory: routelink/upstream/ios
+        run: |
+          set -euo pipefail
+          pod install
+          pbx=Pods/Pods.xcodeproj/project.pbxproj
+          isa=$(plutil -extract "objects.$(plutil -extract rootObject raw -o - "$pbx").isa" raw -o - "$pbx")
+          [ "$isa" = PBXProject ] || { echo "::error::Pods.xcodeproj is damaged: root object is $isa"; exit 1; }
+
+      - name: Archive Unsigned Device Build
+        working-directory: routelink/upstream
+        env:
+          EXPO_PUBLIC_HUB_RELEASE_TAG: routelink-${{ needs.test.outputs.release_stamp }}
+          RL_VERSION_CODE: ${{ needs.test.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace ios/RouteLink.xcworkspace -scheme RouteLink -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -archivePath build/RouteLink.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | tee archive.log \
+            | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q '\*\* ARCHIVE SUCCEEDED \*\*' archive.log
+          test -d build/RouteLink.xcarchive/Products/Applications/RouteLink.app
+
+      - name: Package Unsigned IPA
+        working-directory: routelink/upstream
+        run: |
+          set -euo pipefail
+          IPA_NAME="RouteLink-${{ needs.test.outputs.release_stamp }}-unsigned.ipa"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R build/RouteLink.xcarchive/Products/Applications/RouteLink.app Payload/
+          zip -qry "${IPA_NAME}" Payload
+          ls -lh "${IPA_NAME}"
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: routelink-ios-ipa
+          path: routelink/upstream/RouteLink-*-unsigned.ipa
+          retention-days: 3
+
+      - name: Upload Archive Log on Failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive-log
+          path: routelink/upstream/archive.log
+          retention-days: 3
+
+  release:
+    name: Publish Unified RouteLink Release
+    needs: [test, android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: routelink-android-apk
+          path: ./release-assets
+
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: routelink-ios-ipa
+          path: ./release-assets
+
+      - name: Publish Release & Prune Old RouteLink Releases
+        run: |
+          set -euo pipefail
+          STAMP="${{ needs.test.outputs.release_stamp }}"
+          APP_VER="${{ needs.test.outputs.app_version }}"
+          TAG="routelink-${STAMP}"
+          (cd ./release-assets && sha256sum * > SHA256SUMS)
+          ls -lh ./release-assets
+
+          NOTES_FILE="${RUNNER_TEMP}/routelink-release-notes.md"
+          {
+            printf '## RouteLink v%s (%s)\n\n' "${APP_VER}" "${STAMP}"
+            printf -- '- **Android**：固定 Release 签名 `.apk`，支持应用内直接检测、校验并覆盖升级\n'
+            printf -- '- **iOS**：未签名 `.ipa`，可供自签工具（AltStore / Sideloadly / LiveContainer / Xcode）安装\n'
+            printf -- '- **自建仓库适配**：\n'
+            printf -- '  - 固件在线升级（Cudy TR3000 v1 256MB / Xiaomi AX3000T）、RouteLink 路由器插件一键更新与软件源、App 自更新全部接入本仓库\n'
+            printf -- '  - OpenVPN 双后端（`procd` + `netifd`）、SQM 双机制（`rc.init` 回退）、`luci-app-wolultra`、`SNAPSHOT` 软件包、`autocore` 温度显示与空 SSH 公钥容错\n\n'
+            printf -- '---\n\n'
+            printf '## RouteLink v%s (%s)\n\n' "${APP_VER}" "${STAMP}"
+            printf -- '- **Android**: Fixed release-signed `.apk` (supports direct in-app check, SHA-256 verification and in-place upgrade)\n'
+            printf -- '- **iOS**: Unsigned `.ipa` for self-signing (AltStore / Sideloadly / LiveContainer / Xcode)\n'
+            printf -- '- **Self-Hosted Hub Integration**:\n'
+            printf -- '  - Online firmware upgrades (TR3000 / AX3000T), RouteLink plugin feed & one-tap updates, and App self-updates served from this repository\n'
+            printf -- '  - Dual OpenVPN backend (`procd` + `netifd`), SQM `rc.init` fallback, `luci-app-wolultra`, `SNAPSHOT` packages, `autocore` temperature parsing, and empty SSH key handling\n'
+          } > "${NOTES_FILE}"
+
+          gh release create "$TAG" ./release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "RouteLink v${APP_VER} (${STAMP})" \
+            --notes-file "${NOTES_FILE}"
+
+          ./shared/scripts/prune-releases.sh "routelink-" 3
+
+  publish-pages:
+    name: Update Pages (Firmware & RouteLink Feed)
+    needs: release
+    if: ${{ !inputs.skip_pages && needs.release.result == 'success' }}
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+    secrets: inherit

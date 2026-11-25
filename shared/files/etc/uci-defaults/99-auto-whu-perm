@@ -1,0 +1,2 @@
+#!/bin/sh
+[ -f /usr/sbin/auto-whu.sh ] && chmod 777 /usr/sbin/auto-whu.sh; exit 0

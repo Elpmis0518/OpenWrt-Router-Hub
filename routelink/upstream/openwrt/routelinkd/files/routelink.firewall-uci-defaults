@@ -1,0 +1,17 @@
+#!/bin/sh
+# OpenWrt-Router-Hub: register firewall3 include for RouteLink iptables block recovery.
+# No-op on nftables systems (TR3000 / firewall4).
+
+command -v nft >/dev/null 2>&1 && exit 0
+command -v uci >/dev/null 2>&1 || exit 0
+[ -f /etc/config/firewall ] || exit 0
+
+uci -q batch <<'EOF'
+set firewall.routelink_block=include
+set firewall.routelink_block.type='script'
+set firewall.routelink_block.path='/usr/share/routelink/firewall-restore.sh'
+set firewall.routelink_block.reload='1'
+commit firewall
+EOF
+
+exit 0
